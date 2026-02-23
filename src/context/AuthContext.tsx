@@ -6,17 +6,20 @@ import {
   createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  sendPasswordResetEmail // Added for password management
+  sendPasswordResetEmail 
 } from "firebase/auth";
 import { auth, db } from "../firebase"; 
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"; // Added updateDoc
+import { doc, getDoc, setDoc } from "firebase/firestore"; 
 
+// Updated UserProfile to include Super Admin and Subscription logic
 interface UserProfile {
   uid: string;
   email: string;
-  role: "admin" | "user";
+  role: "admin" | "owner"; 
   username: string;
-  lastActive?: string; // Track activity
+  lastActive?: string; 
+  isSuperAdmin?: boolean; // Secret flag for you
+  subscriptionStatus?: "active" | "expired" | "none"; // Subscription tracker
 }
 
 interface AuthContextType {
@@ -24,9 +27,9 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
-  registerNewUser: (email: string, pass: string, username: string, role: "admin" | "user") => Promise<void>;
+  registerNewUser: (email: string, pass: string, username: string, role: "admin" | "owner") => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  resetUserPassword: (email: string) => Promise<void>; // Added to interface
+  resetUserPassword: (email: string) => Promise<void>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,24 +45,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const docRef = doc(db, "users", firebaseUser.uid);
           
-          // UPDATE: Stamp the current time as "lastActive" on every session start/refresh
-          await updateDoc(docRef, {
+          // Update last active status every time they log in/refresh
+          await setDoc(docRef, {
             lastActive: new Date().toISOString()
-          }).catch(() => {
-             // If the document doesn't exist yet (first time Google login), 
-             // we handle that in the login logic instead.
-          });
+          }, { merge: true });
 
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
             const data = docSnap.data();
+            // We spread all data from Firestore into the currentUser state
             setCurrentUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email || "",
-              role: data.role || "user",
+              role: data.role || "owner",
               username: data.username || "User",
-              lastActive: data.lastActive
+              lastActive: data.lastActive,
+              isSuperAdmin: data.isSuperAdmin || false, // Capture the flag
+              subscriptionStatus: data.subscriptionStatus || "none" // Capture status
             });
           } else {
             setCurrentUser(null);
@@ -78,11 +81,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
+    console.log("Attempting login for:", email);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), pass);
+    } catch (error: any) {
+      console.error("Firebase Error Code:", error.code);
+      console.error("Firebase Error Message:", error.message);
+      throw error;
+    }
   };
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
 
@@ -94,18 +106,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!docSnap.exists()) {
       const newProfile = {
         username: user.displayName || user.email?.split('@')[0] || "User",
-        role: "user" as const,
+        role: "owner" as const,
         email: user.email || "",
         createdAt: new Date().toISOString(),
-        lastActive: new Date().toISOString()
+        lastActive: new Date().toISOString(),
+        isSuperAdmin: false, // Default to false for security
+        subscriptionStatus: "none"
       };
       await setDoc(docRef, newProfile);
       
       setCurrentUser({
         uid: user.uid,
         email: user.email || "",
-        role: "user",
-        username: newProfile.username
+        role: "owner",
+        username: newProfile.username,
+        isSuperAdmin: false,
+        subscriptionStatus: "none"
       });
     }
   };
@@ -115,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(null);
   };
 
-  const registerNewUser = async (email: string, pass: string, username: string, role: "admin" | "user") => {
+  const registerNewUser = async (email: string, pass: string, username: string, role: "admin" | "owner") => {
     const res = await createUserWithEmailAndPassword(auth, email, pass);
     if (!db) return;
 
@@ -124,11 +140,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role,
       email,
       createdAt: new Date().toISOString(),
-      lastActive: new Date().toISOString()
+      lastActive: new Date().toISOString(),
+      isSuperAdmin: false,
+      subscriptionStatus: "none"
     });
   };
 
-  // NEW: Password Reset Logic
   const resetUserPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email);
   };
@@ -141,7 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       logout, 
       registerNewUser, 
       loginWithGoogle,
-      resetUserPassword // Exported to the app
+      resetUserPassword 
     }}>
       {!loading && children}
     </AuthContext.Provider>

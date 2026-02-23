@@ -72,7 +72,7 @@ const AddProperty: React.FC = () => {
             Add New Property
           </h1>
           <p className="text-gray-500 font-bold uppercase tracking-widest text-xs mt-1 ml-1">
-            Global Asset Entry • Buwembo & Co.
+            Global Asset Entry • Truvana Holdings.
           </p>
         </div>
 
@@ -105,7 +105,7 @@ const AddProperty: React.FC = () => {
                   type="text" 
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="e.g., Buwembo Heights"
+                  placeholder="e.g., Truvana Holdings Heights"
                   className="w-full p-5 bg-gray-50 border-2 border-transparent focus:border-blue-600 focus:bg-white rounded-2xl outline-none font-bold transition-all text-gray-800"
                 />
               </div>

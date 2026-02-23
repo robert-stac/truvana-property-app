@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useCurrency } from "../context/CurrencyContext";
+import { useAuth } from "../context/AuthContext"; // IMPORTED AUTH
 import { 
   RotateCcw, 
   Printer, 
@@ -17,17 +18,20 @@ import {
   doc, 
   addDoc, 
   deleteDoc, 
-  serverTimestamp 
+  serverTimestamp,
+  query,
+  where,
+  orderBy
 } from "firebase/firestore";
 
 interface VacatedTenant {
   id: string;
   name: string;
   propertyId: string;
+  ownerId: string; // Added for RBAC
   rent: number;
   amountPaid: number;
   balance: number;
-  nextPaymentDate: string;
   expiryDate: string;
   vacatedDate: string;
   reason: string;
@@ -35,20 +39,33 @@ interface VacatedTenant {
 
 const VacatedTenants: React.FC = () => {
   const { formatUgx, currency, exchangeRate } = useCurrency();
+  const { currentUser } = useAuth(); // GET USER DATA
   const [vacated, setVacated] = useState<VacatedTenant[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // --- REAL-TIME CLOUD DATA ---
+  // --- 1. REAL-TIME CLOUD DATA (FILTERED BY OWNER) ---
   useEffect(() => {
-    // Listen for Properties
-    const unsubscribeProps = onSnapshot(collection(db, "properties"), (snapshot) => {
+    if (!currentUser) return;
+
+    // A. Sync Properties (Filtered)
+    const propRef = collection(db, "properties");
+    const propQuery = currentUser.role === "admin" 
+        ? query(propRef) 
+        : query(propRef, where("ownerId", "==", currentUser.uid));
+
+    const unsubscribeProps = onSnapshot(propQuery, (snapshot) => {
       const propList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setProperties(propList);
     });
 
-    // Listen for Vacated Tenants
-    const unsubscribeVacated = onSnapshot(collection(db, "vacatedTenants"), (snapshot) => {
+    // B. Sync Vacated Tenants (Filtered)
+    const vacatedRef = collection(db, "vacatedTenants");
+    const vacatedQuery = currentUser.role === "admin"
+        ? query(vacatedRef, orderBy("archivedAt", "desc"))
+        : query(vacatedRef, where("ownerId", "==", currentUser.uid), orderBy("archivedAt", "desc"));
+
+    const unsubscribeVacated = onSnapshot(vacatedQuery, (snapshot) => {
       const vacatedList = snapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data() 
@@ -60,7 +77,7 @@ const VacatedTenants: React.FC = () => {
       unsubscribeProps();
       unsubscribeVacated();
     };
-  }, []);
+  }, [currentUser]);
 
   const getAltCurrency = (amount: number) => {
     const rate = exchangeRate || 3800; 
@@ -79,18 +96,20 @@ const VacatedTenants: React.FC = () => {
     if (!window.confirm(`Restore ${tenantToRestore.name} to active tenants?`)) return;
 
     try {
-      // 1. Add back to active 'tenants' collection
+      // 1. Add back to active 'tenants' collection (preserving ownerId)
       await addDoc(collection(db, "tenants"), {
         name: tenantToRestore.name,
         contact: "", 
         propertyId: tenantToRestore.propertyId,
+        ownerId: tenantToRestore.ownerId, // Critical for RBAC consistency
         rentAmount: tenantToRestore.rent,
         lastAmountPaid: tenantToRestore.amountPaid,
         balance: tenantToRestore.balance,
         paidUntil: tenantToRestore.expiryDate || new Date().toISOString().split('T')[0],
         rentFrequency: "Monthly",
         paymentHistory: [],
-        restoredAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       });
 
       // 2. Remove from 'vacatedTenants' collection
@@ -133,12 +152,15 @@ const VacatedTenants: React.FC = () => {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 pb-12">
       
+      {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 print:hidden">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
             Vacated Tenants Archive
           </h1>
-          <p className="text-gray-500 text-sm mt-1 font-medium">Historical records and final account balances</p>
+          <p className="text-gray-500 text-sm mt-1 font-medium">
+            {currentUser?.role === 'admin' ? "Full Portfolio History" : "Your Historical Property Records"}
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
@@ -163,6 +185,7 @@ const VacatedTenants: React.FC = () => {
         </div>
       </div>
 
+      {/* Main Ledger Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden w-full">
         <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
            <h3 className="font-bold text-gray-800 text-sm">Historical Ledger</h3>
@@ -200,7 +223,7 @@ const VacatedTenants: React.FC = () => {
                         <div className="font-bold text-gray-900 text-sm">{t.name}</div>
                         <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] text-blue-600 font-bold flex items-center gap-1">
-                                <Building2 size={10}/> {property?.name || "Unit Not Found"}
+                                <Building2 size={10}/> {property?.name || "Unit Removed"}
                             </span>
                         </div>
                       </td>
@@ -245,6 +268,7 @@ const VacatedTenants: React.FC = () => {
         </div>
       </div>
 
+      {/* Print Styling */}
       <style>{`
         @media print {
           body { background: white !important; font-size: 10pt; }
@@ -254,6 +278,7 @@ const VacatedTenants: React.FC = () => {
           .bg-gray-50 { background-color: #f9fafb !important; -webkit-print-color-adjust: exact; }
           .print\\:hidden { display: none !important; }
           th { border-bottom: 2px solid #000 !important; }
+          td { border-bottom: 1px solid #eee !important; }
         }
       `}</style>
     </div>

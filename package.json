@@ -1,5 +1,5 @@
 {
-  "name": "buwembo-property-manager",
+  "name": "Truvana Holdings-property-manager",
   "version": "3.1.0",
   "type": "module",
   "private": true,
@@ -14,9 +14,9 @@
     "deploy": "gh-pages -d dist"
   },
   "build": {
-    "appId": "com.buwembo.propertymanager",
+    "appId": "com.Truvana Holdings.propertymanager",
     "productName": "Property Management App",
-    "copyright": "Copyright © 2026 Buwembo & Co. Advocates",
+    "copyright": "Copyright © 2026 Truvana Holdings.",
     "directories": {
       "output": "dist_electron"
     },

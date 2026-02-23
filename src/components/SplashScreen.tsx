@@ -12,12 +12,9 @@ const SplashScreen: React.FC = () => {
         
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white tracking-tight uppercase">
-            Buwembo & Co.
+            Truvana Holdings.
           </h1>
-          <p className="text-blue-300 text-sm font-medium tracking-[0.3em] uppercase mt-1">
-            Advocates
-          </p>
-        </div>
+                </div>
       </div>
 
       {/* Loading Bar */}

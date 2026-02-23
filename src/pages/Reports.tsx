@@ -150,7 +150,7 @@ const Reports: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Property Analytics</h1>
-            <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Buwembo & Co. Management</p>
+            <p className="text-gray-500 text-xs font-medium uppercase tracking-wider">Truvana Holdings. Management</p>
           </div>
         </div>
 

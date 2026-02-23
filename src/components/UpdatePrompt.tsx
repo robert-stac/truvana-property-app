@@ -34,7 +34,7 @@ const UpdatePrompt: React.FC = () => {
             <div>
               <h4 className="font-black text-lg leading-tight">System Update</h4>
               <p className="text-xs text-blue-200 mt-1 font-medium">
-                New features are ready for Buwembo & Co.
+                New features are ready for Truvana Holdings.
               </p>
             </div>
           </div>

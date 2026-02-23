@@ -10,6 +10,7 @@ import {
   UserMinus,
   Settings,
   ShieldCheck, 
+  ShieldAlert, // Added for Super Admin icon
   LogOut 
 } from 'lucide-react';
 import InstallButton from './InstallButton';
@@ -46,13 +47,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               lineHeight: '1.1' 
             }}
           >
-            Buwembo & Co.
-            <span 
-              className="block text-blue-400" 
-              style={{ fontSize: '15px', marginTop: '2px' }}
-            >
-              Advocates
-            </span>
+            Truvana Holdings.
           </h1>
           <div className="mt-4 pt-2 border-t border-blue-800/50 flex flex-col gap-3">
             <p className="text-[10px] text-blue-200/60 font-bold uppercase tracking-[0.2em]">
@@ -99,6 +94,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             >
               <ShieldCheck size={19} className={location.pathname === '/users' ? 'text-white' : 'text-purple-400'} />
               User Management
+            </Link>
+          )}
+
+          {/* SUPER ADMIN ONLY: Developer Portal */}
+          {currentUser?.isSuperAdmin && (
+            <Link
+              to="/super-portal"
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold mt-2 border border-amber-500/20 ${
+                location.pathname === '/super-portal' 
+                  ? 'bg-amber-600 text-white shadow-lg' 
+                  : 'text-amber-200 bg-amber-500/5 hover:bg-amber-500/10'
+              }`}
+            >
+              <ShieldAlert size={19} className={location.pathname === '/super-portal' ? 'text-white' : 'text-amber-400'} />
+              Super Admin Portal
             </Link>
           )}
           

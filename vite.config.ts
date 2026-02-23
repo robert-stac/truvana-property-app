@@ -11,9 +11,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Buwembo Property Management',
-        short_name: 'BuwemboMgmt',
-        description: 'Property Management System for Buwembo & Co. Advocates',
+        name: 'Truvana Holdings Property Management',
+        short_name: 'Truvana HoldingsMgmt',
+        description: 'Property Management System for Truvana Holdings.',
         theme_color: '#1d4ed8',
         icons: [
           {

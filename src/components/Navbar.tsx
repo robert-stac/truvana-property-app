@@ -11,7 +11,7 @@ const Navbar = () => {
 
   return (
     <nav className="w-full bg-white shadow-md py-4 px-6 flex justify-between items-center sticky top-0 z-50">
-      <h1 className="text-xl font-bold text-blue-700">Buwembo & Co. Advocates</h1>
+      <h1 className="text-xl font-bold text-blue-700">Truvana Holdings.</h1>
 
       <div className="flex gap-4">
         <Link to="/" className={linkClasses("/")}>

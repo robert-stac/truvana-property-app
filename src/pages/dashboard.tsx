@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { useCurrency } from "../context/CurrencyContext";
+import { useAuth } from "../context/AuthContext"; 
 import packageInfo from "../../package.json";
 import { 
   Building2, 
@@ -24,7 +25,8 @@ import {
   doc, 
   writeBatch, 
   getDocs,
-  query
+  query,
+  where 
 } from "firebase/firestore";
 
 const SystemStatus: React.FC = () => {
@@ -69,6 +71,7 @@ const SystemStatus: React.FC = () => {
 
 const Dashboard: React.FC = () => {
   const { formatUgx, currency, exchangeRate } = useCurrency();
+  const { currentUser } = useAuth(); 
   const [properties, setProperties] = useState<any[]>([]);
   const [overdueTenants, setOverdueTenants] = useState<any[]>([]);
   const [pendingRepairs, setPendingRepairs] = useState<any[]>([]);
@@ -82,26 +85,40 @@ const Dashboard: React.FC = () => {
 
   // --- REAL-TIME CLOUD UPDATES ---
   useEffect(() => {
-    const unsubProps = onSnapshot(collection(db, "properties"), (propSnap) => {
+    if (!currentUser) return;
+
+    // Determine if we show everything (Admin) or filtered (Landlord)
+    const isAdmin = currentUser.role === 'admin';
+
+    // 1. Properties Query Logic
+    const propBase = collection(db, "properties");
+    const propQuery = isAdmin ? query(propBase) : query(propBase, where("ownerId", "==", currentUser.uid));
+    
+    const unsubProps = onSnapshot(propQuery, (propSnap) => {
       const pList = propSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setProperties(pList);
 
-      const unsubTenants = onSnapshot(collection(db, "tenants"), (tenantSnap) => {
+      // 2. Tenants Query Logic
+      const tenantBase = collection(db, "tenants");
+      const tenantQuery = isAdmin ? query(tenantBase) : query(tenantBase, where("ownerId", "==", currentUser.uid));
+      
+      const unsubTenants = onSnapshot(tenantQuery, (tenantSnap) => {
         const tList = tenantSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        const unsubRepairs = onSnapshot(collection(db, "repairs"), (repairSnap) => {
+        // 3. Repairs Query Logic
+        const repairBase = collection(db, "repairs");
+        const repairQuery = isAdmin ? query(repairBase) : query(repairBase, where("ownerId", "==", currentUser.uid));
+        
+        const unsubRepairs = onSnapshot(repairQuery, (repairSnap) => {
           const rList = repairSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
           const today = new Date();
           today.setHours(0, 0, 0, 0);
 
-          // 1. Map tenants to include "Effective Arrears" based on PaidUntil date
           const processedTenants = tList.map((t: any) => {
             const paidUntilDate = new Date(t.paidUntil);
             const isExpired = today >= paidUntilDate;
             const baseBalance = Number(t.balance || 0);
-            
-            // Logic: If date reached, arrears = current balance + rent amount
             const effectiveArrears = isExpired ? baseBalance + (Number(t.rentAmount) || 0) : baseBalance;
 
             let daysLate = 0;
@@ -109,14 +126,10 @@ const Dashboard: React.FC = () => {
                 const diffTime = Math.abs(today.getTime() - paidUntilDate.getTime());
                 daysLate = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             }
-
             return { ...t, effectiveArrears, daysLate };
           });
 
-          // 2. Filter for anyone who owes money
           const overdue = processedTenants.filter(t => t.effectiveArrears > 0);
-
-          // 3. Totals
           const revenue = tList.reduce((acc: number, t: any) => acc + Number(t.lastAmountPaid || 0), 0);
           const totalDynamicBalance = processedTenants.reduce((acc: number, t: any) => acc + t.effectiveArrears, 0);
           const repairCosts = rList.reduce((acc: number, r: any) => acc + Number(r.cost || 0), 0);
@@ -136,7 +149,7 @@ const Dashboard: React.FC = () => {
       return () => unsubTenants();
     });
     return () => unsubProps();
-  }, []);
+  }, [currentUser]);
 
   const getAltCurrency = (amount: number) => {
     const rate = exchangeRate || 3800; 
@@ -145,35 +158,48 @@ const Dashboard: React.FC = () => {
     return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // --- EXPORT/IMPORT LOGIC REMAINS SAME ---
   const handleExport = async () => {
-    const backupData = {
-      properties,
-      tenants: (await getDocs(collection(db, "tenants"))).docs.map(d => ({id: d.id, ...d.data()})),
-      repairs: (await getDocs(collection(db, "repairs"))).docs.map(d => ({id: d.id, ...d.data()})),
-      vacatedTenants: (await getDocs(collection(db, "vacatedTenants"))).docs.map(d => ({id: d.id, ...d.data()}))
+    if (!currentUser) return;
+    const isAdmin = currentUser.role === 'admin';
+
+    // Helper to get correct query based on role
+    const getRoleQuery = (colName: string) => {
+      const colRef = collection(db, colName);
+      return isAdmin ? query(colRef) : query(colRef, where("ownerId", "==", currentUser.uid));
     };
+
+    const backupData = {
+      properties: (await getDocs(getRoleQuery("properties"))).docs.map(d => ({id: d.id, ...d.data()})),
+      tenants: (await getDocs(getRoleQuery("tenants"))).docs.map(d => ({id: d.id, ...d.data()})),
+      repairs: (await getDocs(getRoleQuery("repairs"))).docs.map(d => ({id: d.id, ...d.data()})),
+      vacatedTenants: (await getDocs(getRoleQuery("vacatedTenants"))).docs.map(d => ({id: d.id, ...d.data()}))
+    };
+
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Buwembo_Cloud_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `Truvana_Backup_${isAdmin ? 'Full' : currentUser.uid}_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     localStorage.setItem('last_backup_date', new Date().toISOString());
   };
 
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentUser) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target?.result as string);
         if (!window.confirm("Upload this backup to the cloud?")) return;
         const batch = writeBatch(db);
-        if (data.properties) data.properties.forEach((p: any) => batch.set(doc(db, "properties", p.id), p));
-        if (data.tenants) data.tenants.forEach((t: any) => batch.set(doc(db, "tenants", t.id), t));
-        if (data.repairs) data.repairs.forEach((r: any) => batch.set(doc(db, "repairs", r.id), r));
-        if (data.vacatedTenants) data.vacatedTenants.forEach((v: any) => batch.set(doc(db, "vacatedTenants", v.id), v));
+        
+        // Import logic: Admins keep original ownerIds, Landlords get their own UID tagged
+        const tagOwner = (item: any) => currentUser.role === 'admin' ? item : { ...item, ownerId: currentUser.uid };
+
+        if (data.properties) data.properties.forEach((p: any) => batch.set(doc(db, "properties", p.id), tagOwner(p)));
+        if (data.tenants) data.tenants.forEach((t: any) => batch.set(doc(db, "tenants", t.id), tagOwner(t)));
+        if (data.repairs) data.repairs.forEach((r: any) => batch.set(doc(db, "repairs", r.id), tagOwner(r)));
+        
         await batch.commit();
         alert("Cloud synchronization successful!");
       } catch (err) { alert("Failed to sync."); }
@@ -185,7 +211,9 @@ const Dashboard: React.FC = () => {
     <div className="w-full max-w-7xl mx-auto space-y-8 pb-12 text-left">
       <div className="px-1">
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">Real-time Cloud Management</p>
+        <p className="text-gray-500 text-sm mt-1">
+          {currentUser?.role === 'admin' ? "Master Administrator View" : "Real-time Landlord Cloud Management"}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">

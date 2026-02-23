@@ -34,19 +34,17 @@ const Login: React.FC = () => {
         
         {/* Logo Section */}
         <div className="text-center">
-          <div className="mx-auto h-40 w-40 bg-blue-900 rounded-2xl flex items-center justify-center overflow-hidden mb-6 shadow-xl ring-4 ring-blue-50">
+          <div className="mx-auto h-30 w-30 bg-blue-900 rounded-2xl flex items-center justify-center overflow-hidden mb-6 shadow-xl ring-4 ring-blue-50">
             <img 
               src="/property-app-updates/pwa-512x512.png" 
-              alt="Buwembo & Co. Logo" 
+              alt="Truvana Holdings. Logo" 
               className="w-full h-full object-cover"
             />
           </div>
           <h2 className="text-2xl font-black text-blue-900 tracking-tight uppercase leading-none">
-            Buwembo & Co.
+            Truvana Holdings.
           </h2>
-          <p className="mt-1 text-xs text-blue-400 font-bold uppercase tracking-[0.2em]">
-            Advocates
-          </p>
+          
           <p className="mt-1 text-[10px] text-blue-800 font-bold uppercase tracking-[0.2em]">
             Property Management System
           </p>

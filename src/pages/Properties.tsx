@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useCurrency } from "../context/CurrencyContext";
-import { Building2, Search, Home, MapPin, Users, Edit3, Trash2, PlusCircle, XCircle } from "lucide-react";
+import { useAuth } from "../context/AuthContext"; // IMPORTED AUTH
+import { Building2, Search, Home, MapPin, Users, Edit3, Trash2, PlusCircle, UserCircle } from "lucide-react";
 // --- FIREBASE IMPORTS ---
 import { db } from "../firebase";
 import { 
   collection, onSnapshot, addDoc, updateDoc, 
-  deleteDoc, doc, query, serverTimestamp 
+  deleteDoc, doc, query, serverTimestamp, where, getDocs 
 } from "firebase/firestore";
 
 interface Property {
@@ -14,6 +15,7 @@ interface Property {
   location: string;
   price: number;
   description: string;
+  ownerId: string; // NEW: Track who owns this
 }
 
 interface Tenant {
@@ -22,10 +24,18 @@ interface Tenant {
   propertyId: string;
 }
 
+interface Owner {
+  uid: string;
+  username: string;
+}
+
 const Properties: React.FC = () => {
   const { formatUgx, currency, exchangeRate } = useCurrency();
+  const { currentUser } = useAuth(); // GET CURRENT USER & ROLE
+  
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [owners, setOwners] = useState<Owner[]>([]); // NEW: For the Admin dropdown
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   
@@ -34,14 +44,22 @@ const Properties: React.FC = () => {
     location: "",
     price: 0,
     description: "",
+    ownerId: "", // Default empty
   });
   
   const [usdDisplay, setUsdDisplay] = useState<string>("0");
 
-  // --- REAL-TIME FIREBASE SYNC ---
+  // --- 1. REAL-TIME FIREBASE SYNC (FILTERED BY ROLE) ---
   useEffect(() => {
-    // Listen for Properties
-    const unsubscribeProps = onSnapshot(collection(db, "properties"), (snapshot) => {
+    if (!currentUser) return;
+
+    // Determine the query based on role
+    const propertiesRef = collection(db, "properties");
+    const q = currentUser.role === "admin" 
+      ? query(propertiesRef) // Admin sees all
+      : query(propertiesRef, where("ownerId", "==", currentUser.uid)); // Owners see their own
+
+    const unsubscribeProps = onSnapshot(q, (snapshot) => {
       const propList = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -49,7 +67,6 @@ const Properties: React.FC = () => {
       setProperties(propList);
     });
 
-    // Listen for Tenants (to handle the "Access Denied" deletion logic)
     const unsubscribeTenants = onSnapshot(collection(db, "tenants"), (snapshot) => {
       const tenantList = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -62,7 +79,23 @@ const Properties: React.FC = () => {
       unsubscribeProps();
       unsubscribeTenants();
     };
-  }, []);
+  }, [currentUser]);
+
+  // --- 2. FETCH OWNERS LIST (FOR ADMIN DROPDOWN) ---
+  useEffect(() => {
+    if (currentUser?.role === "admin") {
+      const fetchOwners = async () => {
+        const q = query(collection(db, "users"), where("role", "==", "owner"));
+        const snapshot = await getDocs(q);
+        const ownerList = snapshot.docs.map(doc => ({
+          uid: doc.id,
+          username: doc.data().username || "Unknown Owner"
+        }));
+        setOwners(ownerList);
+      };
+      fetchOwners();
+    }
+  }, [currentUser]);
 
   const getAltCurrency = (amount: number) => {
     const rate = exchangeRate || 3800; 
@@ -90,23 +123,33 @@ const Properties: React.FC = () => {
   // --- CLOUD SUBMIT LOGIC ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation: Admins must select an owner
+    if (currentUser?.role === "admin" && !formData.ownerId) {
+        alert("Please assign an owner to this property.");
+        return;
+    }
+
     try {
+      // If an owner adds a property, it's automatically theirs
+      const finalOwnerId = currentUser?.role === "admin" ? formData.ownerId : currentUser?.uid;
+
       if (editingId) {
-        // Update Firestore Document
         const propRef = doc(db, "properties", editingId);
         await updateDoc(propRef, {
           ...formData,
+          ownerId: finalOwnerId,
           updatedAt: serverTimestamp()
         });
         setEditingId(null);
       } else {
-        // Create new Firestore Document
         await addDoc(collection(db, "properties"), {
           ...formData,
+          ownerId: finalOwnerId,
           createdAt: serverTimestamp()
         });
       }
-      setFormData({ name: "", location: "", price: 0, description: "" });
+      setFormData({ name: "", location: "", price: 0, description: "", ownerId: "" });
       setUsdDisplay("0");
     } catch (err) {
       console.error("Firebase Error:", err);
@@ -122,19 +165,19 @@ const Properties: React.FC = () => {
       location: property.location,
       price: property.price,
       description: property.description,
+      ownerId: property.ownerId || ""
     });
     setUsdDisplay((property.price / rate).toFixed(2));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // --- CLOUD DELETE LOGIC ---
   const handleDelete = async (id: string) => {
     const activeTenants = tenants.filter((t) => t.propertyId === id);
     if (activeTenants.length > 0) {
       alert(`Access Denied: Cannot delete. This property has ${activeTenants.length} active tenant(s).`);
       return;
     }
-    if (!window.confirm("Are you sure you want to permanently delete this property? This will sync for all users.")) return;
+    if (!window.confirm("Are you sure you want to permanently delete this property?")) return;
     
     try {
       await deleteDoc(doc(db, "properties", id));
@@ -153,15 +196,15 @@ const Properties: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 pb-12">
-      {/* ... ALL YOUR UI COMPONENTS REMAIN UNCHANGED ... */}
-      
       {/* Header & Search */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
              Properties
           </h1>
-          <p className="text-gray-500 text-sm mt-1">Manage your real estate assets</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {currentUser?.role === 'admin' ? "Managing all Truvana Holdings assets" : "Your assigned property portfolio"}
+          </p>
         </div>
         
         <div className="relative w-full md:w-80 group">
@@ -176,7 +219,7 @@ const Properties: React.FC = () => {
         </div>
       </div>
 
-      {/* Entry Form */}
+      {/* Entry Form - Only show to Admin (or owners if you allow them to add) */}
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
             <div className={`p-2 rounded-lg ${editingId ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -187,14 +230,14 @@ const Properties: React.FC = () => {
             </h2>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-1">
             <label className="block text-xs font-medium text-gray-700 mb-1.5">Property Name</label>
             <input 
               value={formData.name} 
               onChange={(e) => setFormData({...formData, name: e.target.value})} 
               required 
-              placeholder="e.g. Buwembo Plaza"
+              placeholder="e.g. Truvana Plaza"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all" 
             />
           </div>
@@ -208,6 +251,24 @@ const Properties: React.FC = () => {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all" 
             />
           </div>
+
+          {/* ADMIN ONLY: OWNER DROPDOWN */}
+          {currentUser?.role === "admin" && (
+            <div className="lg:col-span-1">
+              <label className="block text-xs font-medium text-purple-700 mb-1.5">Assign Landlord (Owner)</label>
+              <select
+                value={formData.ownerId}
+                onChange={(e) => setFormData({...formData, ownerId: e.target.value})}
+                required
+                className="w-full px-4 py-2.5 border border-purple-200 bg-purple-50/30 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none text-sm transition-all"
+              >
+                <option value="">-- Select Owner --</option>
+                {owners.map(o => (
+                  <option key={o.uid} value={o.uid}>{o.username}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="relative">
             <label className="block text-xs font-medium text-blue-700 mb-1.5">Monthly Rent (UGX)</label>
@@ -251,7 +312,7 @@ const Properties: React.FC = () => {
           {editingId && (
             <button 
               type="button" 
-              onClick={() => { setEditingId(null); setFormData({name:"", location:"", price:0, description:""}); setUsdDisplay("0"); }} 
+              onClick={() => { setEditingId(null); setFormData({name:"", location:"", price:0, description:"", ownerId: ""}); setUsdDisplay("0"); }} 
               className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-all"
             >
               Cancel
@@ -262,8 +323,9 @@ const Properties: React.FC = () => {
 
       {/* Table Container */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-6 border-b border-gray-100 bg-gray-50/50">
+        <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
             <h3 className="font-bold text-gray-800 text-sm">Property Inventory</h3>
+            {currentUser?.role === 'admin' && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold">ADMIN VIEW</span>}
         </div>
         <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -271,6 +333,7 @@ const Properties: React.FC = () => {
                 <tr className="bg-gray-50 border-b border-gray-100 text-left">
                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Property Details</th>
                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
+                    {currentUser?.role === 'admin' && <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Owner</th>}
                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Tenants</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Rent</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -278,7 +341,7 @@ const Properties: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
                 {filteredProperties.length === 0 ? (
-                <tr><td colSpan={5} className="p-12 text-center text-gray-400 text-sm">No properties found matching your search.</td></tr>
+                <tr><td colSpan={currentUser?.role === 'admin' ? 6 : 5} className="p-12 text-center text-gray-400 text-sm">No properties found.</td></tr>
                 ) : (
                 filteredProperties.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors group">
@@ -299,6 +362,17 @@ const Properties: React.FC = () => {
                             {p.location}
                         </div>
                     </td>
+
+                    {/* ADMIN ONLY: SHOW WHO OWNS IT */}
+                    {currentUser?.role === 'admin' && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 text-purple-600 text-xs font-medium">
+                          <UserCircle size={14} />
+                          {owners.find(o => o.uid === p.ownerId)?.username || "Unassigned"}
+                        </div>
+                      </td>
+                    )}
+
                     <td className="px-6 py-4 text-center">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                         <Users size={12}/> {getTenantCount(p.id)} Occupied

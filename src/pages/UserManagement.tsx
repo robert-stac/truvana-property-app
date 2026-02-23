@@ -2,10 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
-import { UserPlus, Shield, User, Trash2, AlertTriangle, Mail, Loader2, Key } from "lucide-react";
+import { UserPlus, Shield, User, Trash2, AlertTriangle, Mail, Loader2, Key, Building2 } from "lucide-react";
 
 const UserManagement: React.FC = () => {
-  // Added resetUserPassword from your AuthContext
   const { registerNewUser, currentUser, resetUserPassword } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true); 
@@ -14,7 +13,8 @@ const UserManagement: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState<"admin" | "user">("user");
+  // Updated default to "owner" for Landlords
+  const [role, setRole] = useState<"admin" | "owner">("owner");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Real-time listener for users in Firestore
@@ -40,12 +40,13 @@ const UserManagement: React.FC = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      // Passes the role (admin or owner) to your register function
       await registerNewUser(email.trim(), password, username.trim(), role);
       setEmail("");
       setPassword("");
       setUsername("");
-      setRole("user");
-      alert(`Staff account for ${username} created in the cloud successfully!`);
+      setRole("owner");
+      alert(`Account for ${username} created as ${role} successfully!`);
     } catch (error: any) {
       alert(`Creation Failed: ${error.message}`);
     } finally {
@@ -57,23 +58,27 @@ const UserManagement: React.FC = () => {
     if (window.confirm(`Send a secure password reset link to ${name} (${email})?`)) {
       try {
         await resetUserPassword(email);
-        alert(`Reset link sent to ${email}. Please ask them to check their inbox.`);
+        alert(`Reset link sent to ${email}.`);
       } catch (error: any) {
         alert("Error sending reset email: " + error.message);
       }
     }
   };
 
+  // Updated toggleRole to include "owner" logic
   const toggleRole = async (uid: string, currentRole: string) => {
     if (uid === currentUser?.uid) {
       alert("Security Protocol: You cannot change your own administrative permissions.");
       return;
     }
-    const newRole = currentRole === "admin" ? "user" : "admin";
+
+    // Logic: Cycles Admin -> Owner -> Admin
+    const newRole = currentRole === "admin" ? "owner" : "admin";
+    
     try {
       await updateDoc(doc(db, "users", uid), { role: newRole });
     } catch (err) {
-      alert("Permission denied. Check Firestore rules.");
+      alert("Permission denied. Ensure your Firestore rules allow updating the 'role' field.");
     }
   };
 
@@ -106,14 +111,14 @@ const UserManagement: React.FC = () => {
     <div className="max-w-6xl mx-auto space-y-8 pb-12 text-left px-4">
       <div className="px-1">
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">System Personnel</h1>
-        <p className="text-gray-500 text-sm mt-1">Cloud Directory • Buwembo & Co. Advocates</p>
+        <p className="text-gray-500 text-sm mt-1">Manage Admins & Landlords • Truvana Holdings</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Create User Form */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 h-fit sticky top-24">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase tracking-wider">
-            <UserPlus size={18} className="text-blue-600" /> Register Staff
+            <UserPlus size={18} className="text-blue-600" /> Provision Account
           </h3>
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div>
@@ -133,7 +138,7 @@ const UserManagement: React.FC = () => {
                 className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@buwembo.com"
+                placeholder="name@truvana.com"
               />
             </div>
             <div>
@@ -147,21 +152,21 @@ const UserManagement: React.FC = () => {
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">System Role</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Designated Role</label>
               <select 
                 className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
                 value={role}
                 onChange={(e) => setRole(e.target.value as any)}
               >
-                <option value="user">Standard User (Properties/Tenants)</option>
-                <option value="admin">Admin (Full Access + User Mgmt)</option>
+                <option value="owner">Landlord (Property Owner)</option>
+                <option value="admin">System Admin (Full Control)</option>
               </select>
             </div>
             <button 
               disabled={isSubmitting}
               className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md flex items-center justify-center gap-2 transition-all disabled:bg-blue-300"
             >
-              {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : "Provision Account"}
+              {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : "Create User"}
             </button>
           </form>
         </div>
@@ -184,7 +189,7 @@ const UserManagement: React.FC = () => {
                 <thead className="bg-gray-50 text-gray-400 text-[10px] font-bold uppercase tracking-widest">
                   <tr>
                     <th className="px-6 py-4 text-left">User Profile</th>
-                    <th className="px-6 py-4 text-left">Status/Role</th>
+                    <th className="px-6 py-4 text-left">Role Assignment</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -193,14 +198,14 @@ const UserManagement: React.FC = () => {
                     <tr key={u.uid} className="hover:bg-gray-50/80 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2.5 rounded-xl ${u.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {u.role === 'admin' ? <Shield size={18}/> : <User size={18}/>}
+                          <div className={`p-2.5 rounded-xl ${u.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>
+                            {u.role === 'admin' ? <Shield size={18}/> : <Building2 size={18}/>}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-gray-900 text-sm">{u.username}</span>
                               {u.uid === currentUser?.uid && (
-                                <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded-lg font-bold uppercase tracking-tighter">You</span>
+                                <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded-lg font-bold uppercase tracking-tighter">Active Session</span>
                               )}
                             </div>
                             <p className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
@@ -215,15 +220,14 @@ const UserManagement: React.FC = () => {
                           className={`text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-tighter cursor-pointer hover:shadow-sm transition-all border ${
                             u.role === 'admin' 
                               ? 'bg-purple-50 text-purple-700 border-purple-100' 
-                              : 'bg-blue-50 text-blue-700 border-blue-100'
+                              : 'bg-orange-50 text-orange-700 border-orange-100'
                           }`}
                         >
-                          {u.role}
+                          {u.role === 'admin' ? 'Admin' : 'Landlord'}
                         </button>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {/* NEW: Password Reset Button */}
                           <button 
                             onClick={() => handleResetPassword(u.email, u.username)}
                             className="p-2.5 rounded-xl text-gray-400 hover:text-orange-600 hover:bg-orange-50 transition-all"

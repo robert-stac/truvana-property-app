@@ -29,7 +29,7 @@ const SystemManager: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Buwembo_Cloud_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `Truvana Holdings_Cloud_Backup_${new Date().toISOString().split('T')[0]}.json`;
       link.click();
     } catch (error) {
       alert("Export failed. Please check your internet connection.");
@@ -62,7 +62,7 @@ const SystemManager: React.FC = () => {
           window.location.reload();
         }
       } catch (err) {
-        alert("Invalid backup file. Please ensure you are using a genuine Buwembo & Co. JSON file.");
+        alert("Invalid backup file. Please ensure you are using a genuine Truvana Holdings. JSON file.");
       } finally {
         setIsSyncing(false);
       }
@@ -148,7 +148,7 @@ const SystemManager: React.FC = () => {
         <div>
             <p className="text-[11px] text-blue-200 font-bold uppercase mb-1 tracking-wider">Multi-Device Synchronization</p>
             <p className="text-xs text-white leading-relaxed font-medium">
-                Buwembo & Co. Advocates system is now <strong>Cloud-Enabled</strong>. Changes made on this device will appear on all the other devices linked to this account 
+                Truvana Holdings system is now <strong>Cloud-Enabled</strong>. Changes made on this device will appear on all the other devices linked to this account 
                 instantly. Always ensure you have a stable internet connection for real-time updates.
             </p>
         </div>

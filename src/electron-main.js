@@ -5,7 +5,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: "Buwembo & Co. Management",
+    title: "Truvana Holdings. Management",
     // This allows the app to remember its size and state
     webPreferences: {
       nodeIntegration: false,
