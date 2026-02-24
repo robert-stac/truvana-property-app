@@ -36,7 +36,7 @@ const Login: React.FC = () => {
         <div className="text-center">
           <div className="mx-auto h-30 w-30 bg-blue-900 rounded-2xl flex items-center justify-center overflow-hidden mb-6 shadow-xl ring-4 ring-blue-50">
             <img 
-              src="/property-app-updates/pwa-512x512.png" 
+              src="/pwa-512x512.png" 
               alt="Truvana Holdings. Logo" 
               className="w-full h-full object-cover"
             />
