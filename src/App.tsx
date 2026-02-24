@@ -96,6 +96,7 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   useEffect(() => {
+    // --- DATA MIGRATION SCRIPT (V1 to V2) ---
     const CURRENT_VERSION = "2.0";
     const installedVersion = localStorage.getItem("app_version");
 
@@ -127,14 +128,16 @@ const App: React.FC = () => {
       localStorage.setItem("properties", JSON.stringify(updatedProperties));
 
       localStorage.setItem("app_version", CURRENT_VERSION);
-      window.location.assign(window.location.origin + import.meta.env.BASE_URL);
+      // Removed import.meta.env.BASE_URL to prevent routing errors on Vercel
+      window.location.assign(window.location.origin + "/");
     }
   }, []);
 
   return (
     <AuthProvider>
       <CurrencyProvider>
-        <Router basename={import.meta.env.BASE_URL}>
+        {/* Removed basename to ensure root-level serving on Vercel */}
+        <Router>
           <div className="min-h-screen bg-gray-50 font-sans antialiased">
             <AppContent />
           </div>
