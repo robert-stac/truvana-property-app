@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   // This tells Vite: "All my files are inside the /property-app-updates/ folder"
-  base: '/property-app-updates/', 
+  base: '/', 
   plugins: [
     react(),
     VitePWA({
