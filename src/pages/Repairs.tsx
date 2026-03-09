@@ -82,22 +82,23 @@ const Repairs: React.FC = () => {
   // Helper for table display
   const getAltCurrency = (amount: number) => {
     const rate = exchangeRate || 3800; 
-    if (currency === "UGX") {
-      return `USD $${(amount / rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    } else {
+    if (currency === "USD") {
       return `UGX ${(amount * rate).toLocaleString()}`;
+    } else {
+      return `USD $${(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   };
 
   // Dual Currency Sync Logic
   const handleUgxChange = (val: number) => {
-    setFormData({ ...formData, cost: val });
-    setUsdCost((val / (exchangeRate || 3800)).toFixed(2));
+    const rate = exchangeRate || 3800;
+    setFormData({ ...formData, cost: val / rate });
+    setUsdCost((val / rate).toFixed(2));
   };
 
   const handleUsdChange = (val: number) => {
     setUsdCost(val.toString());
-    setFormData({ ...formData, cost: Math.round(val * (exchangeRate || 3800)) });
+    setFormData({ ...formData, cost: val });
   };
 
   // --- CLOUD SUBMIT LOGIC ---
@@ -118,7 +119,7 @@ const Repairs: React.FC = () => {
         });
       }
       setFormData({ propertyId: "", issue: "", description: "", cost: 0, status: "Pending", date: new Date().toISOString().split("T")[0] });
-      setUsdCost("0");
+      setUsdCost("");
     } catch (err) {
       console.error("Firebase Error:", err);
       alert("Failed to save the repair record to the cloud.");
@@ -232,24 +233,23 @@ const Repairs: React.FC = () => {
           <div className="space-y-4 lg:col-span-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div>
-                  <label className="block text-xs font-medium text-blue-700 mb-1.5">Estimated Cost (UGX)</label>
+                  <label className="block text-xs font-medium text-blue-700 mb-1.5">Estimated Cost (USD)</label>
                   <input 
                     type="number" 
                     value={formData.cost || ""} 
-                    onChange={(e) => handleUgxChange(Number(e.target.value))}
+                    onChange={(e) => handleUsdChange(Number(e.target.value))}
                     className="w-full px-4 py-2.5 border border-blue-200 bg-blue-50/30 rounded-lg text-sm font-semibold focus:border-blue-500 outline-none" 
                     placeholder="0" 
                   />
                </div>
                <div>
-                  <label className="block text-xs font-medium text-green-700 mb-1.5">Estimated Cost (USD)</label>
+                  <label className="block text-xs font-medium text-green-700 mb-1.5">Equivalent Cost (UGX)</label>
                   <input 
                     type="number" 
-                    step="0.01"
-                    value={usdCost === "0" ? "" : usdCost} 
-                    onChange={(e) => handleUsdChange(Number(e.target.value))}
+                    value={formData.cost ? (formData.cost * (exchangeRate || 3800)).toFixed(0) : ""} 
+                    onChange={(e) => handleUgxChange(Number(e.target.value))}
                     className="w-full px-4 py-2.5 border border-green-200 bg-green-50/30 rounded-lg text-sm font-semibold focus:border-green-500 outline-none" 
-                    placeholder="0.00" 
+                    placeholder="0" 
                   />
                </div>
             </div>
@@ -342,7 +342,7 @@ const Repairs: React.FC = () => {
                           <button onClick={() => { 
                             setEditingId(r.id); 
                             setFormData({...r}); 
-                            setUsdCost((r.cost / (exchangeRate || 3800)).toFixed(2)); 
+                            setUsdCost(r.cost.toString()); 
                             window.scrollTo({top: 0, behavior: 'smooth'}); 
                           }} className="p-2 text-gray-400 hover:text-blue-600 transition-colors">
                             <Edit3 size={16}/>

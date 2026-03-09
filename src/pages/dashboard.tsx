@@ -153,9 +153,11 @@ const Dashboard: React.FC = () => {
 
   const getAltCurrency = (amount: number) => {
     const rate = exchangeRate || 3800; 
-    const converted = currency === "UGX" ? (amount / rate) : (amount * rate);
-    const symbol = currency === "UGX" ? "USD $" : "UGX ";
-    return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (currency === "USD") {
+      return `UGX ${(amount * rate).toLocaleString()}`;
+    } else {
+      return `USD $${(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
   };
 
   const handleExport = async () => {

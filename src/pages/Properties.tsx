@@ -99,25 +99,24 @@ const Properties: React.FC = () => {
 
   const getAltCurrency = (amount: number) => {
     const rate = exchangeRate || 3800; 
-    if (currency === "UGX") {
-      return `USD $${(amount / rate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    } else {
+    if (currency === "USD") {
       return `UGX ${(amount * rate).toLocaleString()}`;
+    } else {
+      return `USD $${(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
   };
 
   const handleUgxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const ugxValue = Number(e.target.value);
     const rate = exchangeRate || 3800;
-    setFormData({ ...formData, price: ugxValue });
-    setUsdDisplay((ugxValue / rate).toFixed(2));
+    setFormData({ ...formData, price: ugxValue / rate });
+    setUsdDisplay(e.target.value);
   };
 
   const handleUsdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const usdValue = Number(e.target.value);
-    const rate = exchangeRate || 3800;
     setUsdDisplay(e.target.value);
-    setFormData({ ...formData, price: Math.round(usdValue * rate) });
+    setFormData({ ...formData, price: usdValue });
   };
 
   // --- CLOUD SUBMIT LOGIC ---
@@ -150,7 +149,7 @@ const Properties: React.FC = () => {
         });
       }
       setFormData({ name: "", location: "", price: 0, description: "", ownerId: "" });
-      setUsdDisplay("0");
+      setUsdDisplay("");
     } catch (err) {
       console.error("Firebase Error:", err);
       alert("Failed to save property to the cloud.");
@@ -167,7 +166,7 @@ const Properties: React.FC = () => {
       description: property.description,
       ownerId: property.ownerId || ""
     });
-    setUsdDisplay((property.price / rate).toFixed(2));
+    setUsdDisplay(property.price.toString());
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -271,25 +270,24 @@ const Properties: React.FC = () => {
           )}
 
           <div className="relative">
-            <label className="block text-xs font-medium text-blue-700 mb-1.5">Monthly Rent (UGX)</label>
+            <label className="block text-xs font-medium text-blue-700 mb-1.5">Monthly Rent (USD)</label>
             <input 
                 type="number" 
                 value={formData.price || ""} 
-                onChange={handleUgxChange} 
+                onChange={handleUsdChange} 
                 className="w-full px-4 py-2.5 border border-blue-200 bg-blue-50/50 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm font-semibold text-blue-900 transition-all" 
                 placeholder="0" 
             />
           </div>
 
           <div className="relative">
-            <label className="block text-xs font-medium text-green-700 mb-1.5">Equivalent (USD)</label>
+            <label className="block text-xs font-medium text-green-700 mb-1.5">Equivalent (UGX)</label>
             <input 
                 type="number" 
-                step="0.01" 
-                value={usdDisplay === "0" ? "" : usdDisplay} 
-                onChange={handleUsdChange} 
+                value={formData.price ? (formData.price * (exchangeRate || 3800)).toFixed(0) : ""} 
+                onChange={handleUgxChange} 
                 className="w-full px-4 py-2.5 border border-green-200 bg-green-50/50 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none text-sm font-semibold text-green-900 transition-all" 
-                placeholder="0.00" 
+                placeholder="0" 
             />
           </div>
         </div>

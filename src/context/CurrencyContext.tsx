@@ -12,7 +12,7 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [exchangeRate, setExchangeRate] = useState<number>(3700); 
-  const [currency, setCurrency] = useState<"UGX" | "USD">("UGX");
+  const [currency, setCurrency] = useState<"UGX" | "USD">("USD");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,16 +37,18 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // This is the fix! We force "UGX" or "$" labels manually.
+  // Input 'amount' is now assumed to be USD
   const formatUgx = (amount: number) => {
-    if (currency === "UGX") {
-      // Manual string prefixing removes the "Ush" browser default
-      return `UGX ${Math.floor(amount).toLocaleString()}`;
-    } else {
+    if (currency === "USD") {
       return new Intl.NumberFormat('en-US', { 
         style: 'currency', 
         currency: 'USD',
         minimumFractionDigits: 2 
       }).format(amount);
+    } else {
+      // Convert USD to UGX
+      const ugxAmount = Math.floor(amount * exchangeRate);
+      return `UGX ${ugxAmount.toLocaleString()}`;
     }
   };
 
